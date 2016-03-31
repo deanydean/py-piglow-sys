@@ -42,15 +42,36 @@ def stop(clear=True):
     
     _change_task("_disable")
 
-def pulse_color(color, speed=10):
-    """ Pulse each LED of the defined color at the defined speed. """
-    _change_task("_pulse_color", [color, speed], True)
+def clear_all():
+    """ Clear all LEDs """
+    _change_task("_clear_all")
 
-def set_color(color, value=100):
+def pulse_color(color, speed=10, low=64, high=255):
+    """ Pulse each LED of the defined color at the defined speed. """
+    _change_task("_pulse_color", [color, speed, low, high], True)
+
+def set_color(color, value):
+    """ Set the value of the defined color """
     _change_task("_set_color", [color, value])
 
+def cycle(leds, speed=10, low=0, high=255):
+    """ Cycle each LED from low to high in order """
+    _change_task("_cycle", [leds, speed, low, high], True)
+
+def dim(led, speed=2, high=255, low=0):
+    """ Dims the LED from high to low at the given speed """
+    _change_task("_dim", [led, speed, high, low], True)
+
+def set(leds, value):
+    """ Sets the value of each led """
+    _change_task("_set", [leds, value])
+
+def pulse(led, speed=2, low=0, high=255):
+    """ Pulse the LED from low to high at the given speed """
+    _change_task("_pulse", [led, speed, low, high], True)
+
 #
-# Private functions the drive the UI (ie, PiGlow updates)
+# Private functions to drive the UI (ie, PiGlow updates)
 #
 
 _enabled = False
@@ -125,8 +146,6 @@ def _start_updater():
 # API drawing task functions
 #
 
-_PULSE_RANGE = range(64, 255)
-
 def _clear_all():
     """ Clear all LEDs """
     for l in range(0, 18):
@@ -134,21 +153,81 @@ def _clear_all():
     piglow.show()
 
 def _set_color(color, value):
+    """ Set the value of the defined color """
     color_setter = getattr(piglow, color)
     color_setter(value)
     piglow.show()
 
-def _pulse_color(color, speed):
+def _pulse_color(color, speed, low, high):
     """ Pulse each LED of the defined color at the given speed """
     color_setter = getattr(piglow, color)
+    pulse_range = range(low, high)
     wait_for = 1/speed
 
-    for c in _PULSE_RANGE:
+    for c in pulse_range:
         color_setter(c)
         piglow.show()
         sleep(wait_for)
 
-    for c in reversed(_PULSE_RANGE):
+    for c in reversed(pulse_range):
         color_setter(c)
         piglow.show()
         sleep(wait_for)
+
+def _pulse(led, speed, low, high):
+    """ Pulse the LED from low to high """
+    pulse_range = range(low, high)
+    wait_for = 1/speed
+
+    for c in pulse_range:
+        piglow.set(led, c)
+        piglow.show()
+        sleep(wait_for)
+
+    for c in reversed(pulse_range):
+        piglow.set(led, c)
+        piglow.show()
+        sleep(wait_for)
+
+def _set(leds, value):
+    """ Sets the value of each led """
+    for led in leds:
+        piglow.set(led, value)
+    piglow.show()
+
+def _dim(led, speed, high, low):
+    """ Dims the led from high to low at the given speed """
+    dim_range = range(low, high)
+    wait_for = 1/speed
+
+    for c in reversed(dim_range):
+        piglow.set(led, c)
+        piglow.show()
+        sleep(wait_for)
+
+def _cycle(leds, speed, low, high):
+    """ Cycle each LED from low to high in order """
+    pulse_range = range(low, high)
+    wait_for = 1/speed
+
+    # Set each LED to the LOW state
+    _set(leds, low)
+
+    for i in range(0, len(leds)):
+        for c in pulse_range:
+            # Increase the LED to HIGH
+            piglow.set(leds[i], c)
+            piglow.show()
+            sleep(wait_for)
+
+            # Decrease the previous LED back to LOW at same rate
+            if i > 0:
+                piglow.set(leds[i-1], high-(c-low))
+                piglow.show()
+                sleep(wait_for)
+
+    # Decrease the final LED back to LOW state
+    _dim(leds[-1], speed, high, low)
+
+    # Set each LED to the LOW state
+    _set(leds, low)
