@@ -19,7 +19,7 @@ import subprocess
 import time
 
 #
-# Piglow-sys library API.
+# System monitoring library API.
 #
 
 def start(interval=10):
@@ -50,13 +50,13 @@ def get_status():
     return _STATUS_SUCCESS
 
 def set_success_ui(on_success):
-    """ Set the piglow UI for when the status is success """
+    """ Set the UI for when the status is success """
     global _on_success
 
     _on_success = on_success
 
 def set_failure_ui(on_failure):
-    """ Set the piglow UI for when the status is failure """
+    """ Set the UI for when the status is failure """
     global _on_failure
 
     _on_failure = on_failure
@@ -73,10 +73,6 @@ _on_failure = None
 _STATUS_NONE = -1
 _STATUS_SUCCESS = 0
 _STATUS_FAILURE = 1
-
-def _init_ui():
-    """ Init the piglow UI """
-    piglowui.start()
 
 def _monitor_tasks(interval):
     """ Monitor the provided tasks """
