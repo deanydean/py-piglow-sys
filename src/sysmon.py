@@ -15,6 +15,7 @@
 #  limitations under the License.
 #
 
+import os
 import subprocess
 import time
 
@@ -24,7 +25,7 @@ import time
 
 def start(interval=10):
     """ Start monitoring the system """
-    _monitor_tasks(interval)
+    _start_monitoring(interval)
 
 def stop():
     """ Stop monitoring the system """
@@ -41,9 +42,20 @@ def add_task(name, command, args=[], success_code=0):
         "status": _STATUS_NONE
     }
 
+def add_scripts_dir(name, path):
+    """ Add a scripts directory to the monitor """
+    _scripts_dirs[name] = {
+        "path": path,
+        "status": _STATUS_NONE
+    }
+
 def get_status():
     """ Get the current status of the system """
     for data in _tasks_map.values():
+        if data["status"] is _STATUS_FAILURE:
+            return _STATUS_FAILURE
+
+    for data in _scripts_dirs.values():
         if data["status"] is _STATUS_FAILURE:
             return _STATUS_FAILURE
 
@@ -66,6 +78,7 @@ def set_failure_ui(on_failure):
 
 _enabled = False
 _tasks_map = { }
+_scripts_dirs = { }
 _monitor_process = None
 _on_success = None
 _on_failure = None
@@ -74,26 +87,47 @@ _STATUS_NONE = -1
 _STATUS_SUCCESS = 0
 _STATUS_FAILURE = 1
 
-def _monitor_tasks(interval):
+def _start_monitoring(interval):
     """ Monitor the provided tasks """
     global _enabled
 
     _enabled = True
 
     while _enabled:
-        for name, data in _tasks_map.iteritems():
-            # Run the task
-            result = _run_command(data["command"], data["args"])
-
-            if result is data["success_code"]:
-                data["status"] = _STATUS_SUCCESS
-            else:
-                data["status"] = _STATUS_FAILURE
+        # Run all the tasks and scripts to check the system
+        _run_tasks()
+        _run_scripts_dirs()
 
         # Update UI and sleep until we want to do the next monitor
         _update_ui(get_status())
         time.sleep(interval)
         continue
+
+def _run_tasks():
+    """ Run each task """
+    for name, data in _tasks_map.iteritems():
+        # Run the task
+        result = _run_command(data["command"], data["args"])
+
+        if result is data["success_code"]:
+            data["status"] = _STATUS_SUCCESS
+        else:
+            data["status"] = _STATUS_FAILURE
+
+def _run_scripts_dirs():
+    """ For each scripts dir, run each script """
+    for name, data in _scripts_dirs.iteritems():
+        dir_contents = os.listdir(data["path"])
+
+        status = _STATUS_SUCCESS
+        for script in dir_contents:
+            # TODO Check file props
+            result = _run_command(os.path.join(data["path"], script))
+
+            if result is _STATUS_FAILURE:
+                status = _STATUS_FAILURE
+
+        data["status"] = status
 
 def _update_ui(status):
     if status is _STATUS_SUCCESS:
@@ -101,6 +135,6 @@ def _update_ui(status):
     else:
         _on_failure()
 
-def _run_command(command, args):
+def _run_command(command, args=[]):
     """ Run a command """
     return subprocess.call([command]+args)
