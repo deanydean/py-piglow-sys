@@ -61,6 +61,12 @@ def get_status():
 
     return _STATUS_SUCCESS
 
+def set_activity_ui(on_activity):
+    """ Set the UI for when actively monitoring """
+    global _on_activity 
+    
+    _on_activity = on_activity
+
 def set_success_ui(on_success):
     """ Set the UI for when the status is success """
     global _on_success
@@ -72,6 +78,12 @@ def set_failure_ui(on_failure):
     global _on_failure
 
     _on_failure = on_failure
+
+def enable_report(report_filename):
+    global _report_filename
+
+    _report_filename = report_filename
+
 #
 # Private functions to drive the system monitor
 #
@@ -80,12 +92,18 @@ _enabled = False
 _tasks_map = { }
 _scripts_dirs = { }
 _monitor_process = None
-_on_success = None
-_on_failure = None
+_report_filename = None
 
 _STATUS_NONE = -1
 _STATUS_SUCCESS = 0
 _STATUS_FAILURE = 1
+
+def _no_action():
+    pass
+
+_on_activity = _no_action
+_on_success = _no_action
+_on_failure = _no_action
 
 def _start_monitoring(interval):
     """ Monitor the provided tasks """
@@ -95,26 +113,35 @@ def _start_monitoring(interval):
 
     while _enabled:
         # Run all the tasks and scripts to check the system
-        _run_tasks()
-        _run_scripts_dirs()
+        _on_activity()
+
+        report_file = None
+        if _report_filename:
+            report_file = open(_report_filename, "w")
+
+        _run_tasks(report_file)
+        _run_scripts_dirs(report_file)
+
+        if report_file:
+            report_file.close()
 
         # Update UI and sleep until we want to do the next monitor
         _update_ui(get_status())
         time.sleep(interval)
         continue
 
-def _run_tasks():
+def _run_tasks(report_file):
     """ Run each task """
     for name, data in _tasks_map.iteritems():
         # Run the task
-        result = _run_command(data["command"], data["args"])
+        result = _run_command(data["command"], data["args"], report_file)
 
         if result is data["success_code"]:
             data["status"] = _STATUS_SUCCESS
         else:
             data["status"] = _STATUS_FAILURE
 
-def _run_scripts_dirs():
+def _run_scripts_dirs(report_file):
     """ For each scripts dir, run each script """
     for name, data in _scripts_dirs.iteritems():
         dir_contents = os.listdir(data["path"])
@@ -122,7 +149,8 @@ def _run_scripts_dirs():
         status = _STATUS_SUCCESS
         for script in dir_contents:
             # TODO Check file props
-            result = _run_command(os.path.join(data["path"], script))
+            result = _run_command(os.path.join(data["path"], script), [], 
+                report_file)
 
             if result is _STATUS_FAILURE:
                 status = _STATUS_FAILURE
@@ -135,6 +163,6 @@ def _update_ui(status):
     else:
         _on_failure()
 
-def _run_command(command, args=[]):
+def _run_command(command, args=[], output=None):
     """ Run a command """
-    return subprocess.call([command]+args)
+    return subprocess.call([command]+args, stdout=output, stderr=output)
